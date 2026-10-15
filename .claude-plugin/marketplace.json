@@ -6,7 +6,7 @@
     {
       "name": "autoreply",
       "source": "./",
-      "version": "0.1.1",
+      "version": "0.1.2",
       "description": "After each answer, Haiku writes the next prompt and sends it after a 3-second Esc-cancellable countdown (max 5 in a row by default)."
     }
   ]

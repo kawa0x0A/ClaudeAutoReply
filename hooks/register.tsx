@@ -6,6 +6,7 @@ import type { AutoreplyPending } from '../types'
 const PANE = 'autoreply-countdown'
 const DEFAULT_MAX_STREAK = 5
 const MAX_STREAK_LIMIT = 50
+const MAX_PRESETS = [1, 3, 5, 10, 20, 30, 50]
 const COUNTDOWN_SECONDS = 3
 const STORE_KEY = 'enabled'
 const MAX_STORE_KEY = 'maxStreak'
@@ -161,6 +162,12 @@ async function setMax($: EngineInterface, raw: string | number): Promise<string>
   return `autoreply: 連続送信の上限を${n}回にしました`
 }
 
+// The picker jumps to a common limit in one pick; −/+ still fine-tune between them.
+function maxOptions(current: number) {
+  const values = [...new Set([...MAX_PRESETS, current])].sort((a, b) => a - b)
+  return values.map(n => ({ value: String(n), label: `${n}回` }))
+}
+
 function countdown(
   $: EngineInterface,
   e: Parameters<EngineInterface['ui']['resolve']>[0],
@@ -266,7 +273,7 @@ export const register: Register = on => {
     const p = await read($, pending)
     const isOn = await read($, enabled)
     const max = await read($, maxStreak)
-    const { Box, Text, Button } = $.ui.resolve(e)
+    const { Box, Button, Select } = $.ui.resolve(e)
     // The toggle and the limit are always here; the countdown joins them whenever the pane isn't drawn.
     return (
       <Box flexDirection="column">
@@ -279,9 +286,13 @@ export const register: Register = on => {
             dimColor={!isOn}
             onPress={async () => $.ui.toast(await setEnabled($, !isOn))}
           />
-          <Text key="max" dimColor>
-            上限 {max}回
-          </Text>
+          <Select
+            key="max"
+            label="上限"
+            options={maxOptions(max)}
+            value={String(max)}
+            onSelect={value => setMax($, value)}
+          />
           <Button key="max-down" label="−" dimColor onPress={() => setMax($, Math.max(1, max - 1))} />
           <Button
             key="max-up"

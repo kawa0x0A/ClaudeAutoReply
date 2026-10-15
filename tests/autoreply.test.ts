@@ -231,12 +231,12 @@ test('the band buttons change the limit', async ($, on) => {
   for (const surface of ['terminal', 'desktop'] as const) {
     await run($, 'max 5')
     const ui = await band($, surface)
-    expect((await ui.find({ key: 'max' }))?.text).toBe('上限 5回')
+    expect((await ui.find({ key: 'max' }))?.props.value).toBe('5')
     await ui.press({ key: 'max-down' })
     await ui.press({ key: 'max-down' })
     await ui.press({ key: 'max-down' })
     await ui.press({ key: 'max-up' })
-    expect((await ui.find({ key: 'max' }))?.text).toBe('上限 3回')
+    expect((await ui.find({ key: 'max' }))?.props.value).toBe('3')
     await ui.unmount()
 
     sent.length = 0
@@ -255,9 +255,31 @@ test('the band limit stays within 1..50', async ($, on) => {
   const ui = await band($, 'terminal')
   await run($, 'max 1')
   await ui.press({ key: 'max-down' })
-  expect((await ui.find({ key: 'max' }))?.text).toBe('上限 1回')
+  expect((await ui.find({ key: 'max' }))?.props.value).toBe('1')
   await run($, 'max 50')
   await ui.press({ key: 'max-up' })
-  expect((await ui.find({ key: 'max' }))?.text).toBe('上限 50回')
+  expect((await ui.find({ key: 'max' }))?.props.value).toBe('50')
   await ui.unmount()
+})
+
+test('the band picker jumps straight to a limit and lists the current one', async ($, on) => {
+  world(on)
+  await start($)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await run($, 'max 7')
+    const ui = await band($, surface)
+    const picker = await ui.find({ key: 'max' })
+    expect(picker?.type).toBe('Select')
+    expect(picker?.props.value).toBe('7')
+    expect((picker?.props.options as { value: string }[]).map(o => o.value)).toEqual([
+      '1', '3', '5', '7', '10', '20', '30', '50',
+    ])
+    await ui.select({ key: 'max', value: '30' })
+    expect((await ui.find({ key: 'max' }))?.props.value).toBe('30')
+    await ui.unmount()
+  }
+  await start($)
+  const again = await band($, 'desktop')
+  expect((await again.find({ key: 'max' }))?.props.value).toBe('30')
+  await again.unmount()
 })
