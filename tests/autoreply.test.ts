@@ -223,3 +223,41 @@ test('the band toggle follows /autoreply and is remembered across sessions', asy
   expect((await again.find({ key: 'toggle' }))?.text).toBe('autoreply: ON')
   await again.unmount()
 })
+
+test('the band buttons change the limit', async ($, on) => {
+  const { clock, sent } = world(on)
+  await start($)
+  await run($, 'on')
+  for (const surface of ['terminal', 'desktop'] as const) {
+    await run($, 'max 5')
+    const ui = await band($, surface)
+    expect((await ui.find({ key: 'max' }))?.text).toBe('上限 5回')
+    await ui.press({ key: 'max-down' })
+    await ui.press({ key: 'max-down' })
+    await ui.press({ key: 'max-down' })
+    await ui.press({ key: 'max-up' })
+    expect((await ui.find({ key: 'max' }))?.text).toBe('上限 3回')
+    await ui.unmount()
+
+    sent.length = 0
+    await run($, 'on')
+    for (let i = 0; i < 5; i++) {
+      await finish($)
+      await clock.advance(3500)
+    }
+    expect(sent.length).toBe(3)
+  }
+})
+
+test('the band limit stays within 1..50', async ($, on) => {
+  world(on)
+  await start($)
+  const ui = await band($, 'terminal')
+  await run($, 'max 1')
+  await ui.press({ key: 'max-down' })
+  expect((await ui.find({ key: 'max' }))?.text).toBe('上限 1回')
+  await run($, 'max 50')
+  await ui.press({ key: 'max-up' })
+  expect((await ui.find({ key: 'max' }))?.text).toBe('上限 50回')
+  await ui.unmount()
+})

@@ -153,7 +153,7 @@ function parseMax(value: unknown): number | null {
   return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= MAX_STREAK_LIMIT ? n : null
 }
 
-async function setMax($: EngineInterface, raw: string): Promise<string> {
+async function setMax($: EngineInterface, raw: string | number): Promise<string> {
   const n = parseMax(raw)
   if (n === null) return `autoreply: 回数は 1〜${MAX_STREAK_LIMIT} の整数で指定してください (例: /autoreply max 10)`
   await update($, maxStreak, () => n)
@@ -265,18 +265,31 @@ export const register: Register = on => {
     if (e.props.hasSurvey) return next(e)
     const p = await read($, pending)
     const isOn = await read($, enabled)
-    const { Box, Button } = $.ui.resolve(e)
-    // The toggle is always here; the countdown joins it whenever the pane isn't drawn.
+    const max = await read($, maxStreak)
+    const { Box, Text, Button } = $.ui.resolve(e)
+    // The toggle and the limit are always here; the countdown joins them whenever the pane isn't drawn.
     return (
       <Box flexDirection="column">
         {p !== null && !(await read($, paneShown)) ? countdown($, e, p) : null}
-        <Button
-          key="toggle"
-          label={`autoreply: ${isOn ? 'ON' : 'OFF'}`}
-          variant={isOn ? 'primary' : 'secondary'}
-          dimColor={!isOn}
-          onPress={async () => $.ui.toast(await setEnabled($, !isOn))}
-        />
+        <Box flexDirection="row" alignItems="center" gap={1}>
+          <Button
+            key="toggle"
+            label={`autoreply: ${isOn ? 'ON' : 'OFF'}`}
+            variant={isOn ? 'primary' : 'secondary'}
+            dimColor={!isOn}
+            onPress={async () => $.ui.toast(await setEnabled($, !isOn))}
+          />
+          <Text key="max" dimColor>
+            上限 {max}回
+          </Text>
+          <Button key="max-down" label="−" dimColor onPress={() => setMax($, Math.max(1, max - 1))} />
+          <Button
+            key="max-up"
+            label="+"
+            dimColor
+            onPress={() => setMax($, Math.min(MAX_STREAK_LIMIT, max + 1))}
+          />
+        </Box>
       </Box>
     )
   })
