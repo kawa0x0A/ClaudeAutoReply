@@ -4,13 +4,16 @@ import type { EngineInterface, Register, SessionMessage, Timer } from 'claude-co
 import type { AutoreplyPending } from '../types'
 
 const PANE = 'autoreply-countdown'
-const MAX_STREAK = 5
+const DEFAULT_MAX_STREAK = 5
+const MAX_STREAK_LIMIT = 50
 const COUNTDOWN_SECONDS = 3
 const STORE_KEY = 'enabled'
+const MAX_STORE_KEY = 'maxStreak'
 const DONE = 'DONE'
 
 const enabled = atom({ plugin: 'autoreply', key: 'enabled' } as const, false)
 const streak = atom({ plugin: 'autoreply', key: 'streak' } as const, 0)
+const maxStreak = atom({ plugin: 'autoreply', key: 'maxStreak' } as const, DEFAULT_MAX_STREAK)
 const pending = atom({ plugin: 'autoreply', key: 'pending' } as const, null)
 const paneShown = atom({ plugin: 'autoreply', key: 'paneShown' } as const, false)
 
@@ -139,9 +142,23 @@ async function setEnabled($: EngineInterface, isOn: boolean): Promise<string> {
   await $.store.set(STORE_KEY, isOn)
   await update($, streak, () => 0)
   if (!isOn) await cancel($)
+  const max = await read($, maxStreak)
   return isOn
-    ? `autoreply: ON — 返答のたびに次のプロンプトを生成し、${COUNTDOWN_SECONDS}秒後に送信します (Esc でキャンセル、連続${MAX_STREAK}回まで)`
+    ? `autoreply: ON — 返答のたびに次のプロンプトを生成し、${COUNTDOWN_SECONDS}秒後に送信します (Esc でキャンセル、連続${max}回まで)`
     : 'autoreply: OFF'
+}
+
+function parseMax(value: unknown): number | null {
+  const n = typeof value === 'string' ? Number(value) : value
+  return typeof n === 'number' && Number.isInteger(n) && n >= 1 && n <= MAX_STREAK_LIMIT ? n : null
+}
+
+async function setMax($: EngineInterface, raw: string): Promise<string> {
+  const n = parseMax(raw)
+  if (n === null) return `autoreply: 回数は 1〜${MAX_STREAK_LIMIT} の整数で指定してください (例: /autoreply max 10)`
+  await update($, maxStreak, () => n)
+  await $.store.set(MAX_STORE_KEY, n)
+  return `autoreply: 連続送信の上限を${n}回にしました`
 }
 
 function countdown(
@@ -172,23 +189,29 @@ export const register: Register = on => {
   on('session.start', async ($, e, next) => {
     const saved = await $.store.get(STORE_KEY)
     await update($, enabled, () => saved === true)
+    const savedMax = parseMax(await $.store.get(MAX_STORE_KEY))
+    await update($, maxStreak, () => savedMax ?? DEFAULT_MAX_STREAK)
     await update($, pending, () => null)
     await update($, paneShown, () => false)
     await $.command.register({
       name: 'autoreply',
-      description: '返答のたびに Haiku が次のプロンプトを自動送信する (最大5回連続)',
-      argumentHint: 'on | off',
+      description: '返答のたびに Haiku が次のプロンプトを自動送信する (連続回数は max で変更)',
+      argumentHint: 'on | off | max <回数>',
       immediate: true,
     })
     return next(e)
   })
 
   on('command.run', { command: 'autoreply' }, async ($, e) => {
-    const arg = e.args.trim().toLowerCase()
+    const [arg = '', value = ''] = e.args.trim().toLowerCase().split(/\s+/)
     if (arg === 'on' || arg === 'off') return { text: await setEnabled($, arg === 'on') }
+    if (arg === 'max') return { text: await setMax($, value) }
     const isOn = await read($, enabled)
     const n = await read($, streak)
-    return { text: `autoreply: ${isOn ? 'ON' : 'OFF'} (連続送信 ${n}/${MAX_STREAK})。使い方: /autoreply on | off` }
+    const max = await read($, maxStreak)
+    return {
+      text: `autoreply: ${isOn ? 'ON' : 'OFF'} (連続送信 ${n}/${max})。使い方: /autoreply on | off | max <回数>`,
+    }
   })
 
   // The person's own input resets the streak and cancels anything pending.
@@ -219,8 +242,9 @@ export const register: Register = on => {
     if (e.agentId !== undefined || e.reason !== 'answer') return result
     if (!(await read($, enabled))) return result
 
-    if ((await read($, streak)) >= MAX_STREAK) {
-      $.ui.toast(`autoreply: 連続${MAX_STREAK}回送信したので止めました。次の入力を待っています`)
+    const max = await read($, maxStreak)
+    if ((await read($, streak)) >= max) {
+      $.ui.toast(`autoreply: 連続${max}回送信したので止めました。次の入力を待っています`)
       return result
     }
 

@@ -9,6 +9,7 @@ declare module 'claude-code' {
     autoreply: {
       enabled: boolean
       streak: number
+      maxStreak: number
       pending: AutoreplyPending | null
       paneShown: boolean
     }

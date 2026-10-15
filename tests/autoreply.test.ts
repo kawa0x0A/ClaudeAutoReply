@@ -87,6 +87,40 @@ test('stops after 5 in a row', async ($, on) => {
   expect(sent.length).toBe(5)
 })
 
+test('/autoreply max changes the limit and is remembered across sessions', async ($, on) => {
+  const { clock, sent } = world(on)
+  await start($)
+  await run($, 'on')
+  await run($, 'max 2')
+  for (let i = 0; i < 4; i++) {
+    await finish($)
+    await clock.advance(3500)
+  }
+  expect(sent.length).toBe(2)
+
+  await start($)
+  await run($, 'on')
+  sent.length = 0
+  for (let i = 0; i < 4; i++) {
+    await finish($)
+    await clock.advance(3500)
+  }
+  expect(sent.length).toBe(2)
+})
+
+test('/autoreply max rejects values out of range', async ($, on) => {
+  const { clock, sent } = world(on)
+  await start($)
+  await run($, 'on')
+  await run($, 'max 0')
+  await run($, 'max abc')
+  for (let i = 0; i < 7; i++) {
+    await finish($)
+    await clock.advance(3500)
+  }
+  expect(sent.length).toBe(5)
+})
+
 test('ignores subagent turns and DONE', async ($, on) => {
   const { clock, sent } = world(on, 'DONE')
   await start($)
