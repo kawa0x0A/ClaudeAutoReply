@@ -50,6 +50,16 @@ claude --plugin-dir ./ClaudeAutoReply
 - Haiku の呼び出しには、普段の Claude Code と同じアカウント・使用量が使われます。
 - テストは `tests/autoreply.test.ts` にあります（mod のテスト実行に対応した Claude Code で実行してください）。
 
+## 新しいバージョンを出すとき（メンテナー向け）
+
+1. `.claude-plugin/plugin.json` と `.claude-plugin/marketplace.json` の両方で `version` を上げて push します。上げないと、利用者側で更新として扱われません。
+2. 入れ方に合わせて、最新版を取り込みます。
+   - **claude.ai アカウント経由（デスクトップアプリ）**: claude.ai の「カスタマイズ → プラグイン → 追加 → マーケットプレイスを管理」を開き、ClaudeAutoReply の「⋮ → アップデートを確認」を押します。「同期されたコミット」が push したコミットになったことを確認してください。「自動的に同期」がオンでも、push しただけでは取り込まれないことがあります。
+   - **CLI でインストールした場合**: `claude plugin marketplace update kawa0x0a` を実行してから `claude plugin update autoreply@kawa0x0a` を実行します。
+3. デスクトップアプリを完全に終了してから再起動し、新しいセッションを開きます。アプリは起動時にプラグインを同期します。
+
+claude.ai アカウント経由と CLI の両方で入れていると、デスクトップアプリはアカウント版を優先して使います。古い版が動き続けて混乱しやすいので、どちらか一方だけにしてください。
+
 ## ライセンス
 
 [MIT](LICENSE)
