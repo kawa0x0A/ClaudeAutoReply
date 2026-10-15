@@ -1,0 +1,12 @@
+{
+  "name": "kawa0x0a",
+  "owner": { "name": "kawa0x0a" },
+  "description": "kawa0x0a's Claude Code mods",
+  "plugins": [
+    {
+      "name": "autoreply",
+      "source": "./",
+      "description": "After each answer, Haiku writes the next prompt and sends it after a 3-second Esc-cancellable countdown (max 5 in a row)."
+    }
+  ]
+}
