@@ -134,6 +134,16 @@ async function startCycle($: EngineInterface, answer: string): Promise<void> {
   })
 }
 
+async function setEnabled($: EngineInterface, isOn: boolean): Promise<string> {
+  await update($, enabled, () => isOn)
+  await $.store.set(STORE_KEY, isOn)
+  await update($, streak, () => 0)
+  if (!isOn) await cancel($)
+  return isOn
+    ? `autoreply: ON — 返答のたびに次のプロンプトを生成し、${COUNTDOWN_SECONDS}秒後に送信します (Esc でキャンセル、連続${MAX_STREAK}回まで)`
+    : 'autoreply: OFF'
+}
+
 function countdown(
   $: EngineInterface,
   e: Parameters<EngineInterface['ui']['resolve']>[0],
@@ -175,18 +185,7 @@ export const register: Register = on => {
 
   on('command.run', { command: 'autoreply' }, async ($, e) => {
     const arg = e.args.trim().toLowerCase()
-    if (arg === 'on' || arg === 'off') {
-      const isOn = arg === 'on'
-      await update($, enabled, () => isOn)
-      await $.store.set(STORE_KEY, isOn)
-      await update($, streak, () => 0)
-      if (!isOn) await cancel($)
-      return {
-        text: isOn
-          ? `autoreply: ON — 返答のたびに次のプロンプトを生成し、${COUNTDOWN_SECONDS}秒後に送信します (Esc でキャンセル、連続${MAX_STREAK}回まで)`
-          : 'autoreply: OFF',
-      }
-    }
+    if (arg === 'on' || arg === 'off') return { text: await setEnabled($, arg === 'on') }
     const isOn = await read($, enabled)
     const n = await read($, streak)
     return { text: `autoreply: ${isOn ? 'ON' : 'OFF'} (連続送信 ${n}/${MAX_STREAK})。使い方: /autoreply on | off` }
@@ -239,9 +238,23 @@ export const register: Register = on => {
   })
 
   on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+    if (e.props.hasSurvey) return next(e)
     const p = await read($, pending)
-    if (e.props.hasSurvey || p === null || (await read($, paneShown))) return next(e)
-    return countdown($, e, p)
+    const isOn = await read($, enabled)
+    const { Box, Button } = $.ui.resolve(e)
+    // The toggle is always here; the countdown joins it whenever the pane isn't drawn.
+    return (
+      <Box flexDirection="column">
+        {p !== null && !(await read($, paneShown)) ? countdown($, e, p) : null}
+        <Button
+          key="toggle"
+          label={`autoreply: ${isOn ? 'ON' : 'OFF'}`}
+          variant={isOn ? 'primary' : 'secondary'}
+          dimColor={!isOn}
+          onPress={async () => $.ui.toast(await setEnabled($, !isOn))}
+        />
+      </Box>
+    )
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {

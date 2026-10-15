@@ -119,6 +119,22 @@ test('a subagent turn never triggers a generation', async ($, on) => {
   expect(sent).toEqual([])
 })
 
+function band($: Engine, surface: 'terminal' | 'desktop') {
+  return $.ui.mount({
+    plugin: 'autoreply',
+    surface,
+    component: 'AbovePrompt',
+    props: {
+      hasSurvey: false,
+      isWorking: false,
+      maxRows: 10,
+      bodyColumns: 80,
+      scroll: { offset: 0, bodyRows: 9 },
+      view: {},
+    },
+  })
+}
+
 test('the band above the prompt shows the countdown and its button cancels', async ($, on) => {
   const { clock, sent } = world(on)
   await start($)
@@ -126,23 +142,50 @@ test('the band above the prompt shows the countdown and its button cancels', asy
   for (const surface of ['terminal', 'desktop'] as const) {
     await finish($)
     await clock.settle()
-    const ui = await $.ui.mount({
-      plugin: 'autoreply',
-      surface,
-      component: 'AbovePrompt',
-      props: {
-        hasSurvey: false,
-        isWorking: false,
-        maxRows: 10,
-        bodyColumns: 80,
-        scroll: { offset: 0, bodyRows: 9 },
-        view: {},
-      },
-    })
+    const ui = await band($, surface)
     expect(await ui.find({ type: 'Text', text: /次はテストを追加/ })).toBeDefined()
     await ui.press({ key: 'cancel' })
     await clock.advance(5000)
     expect(sent).toEqual([])
     await ui.unmount()
   }
+})
+
+test('the band toggle switches autoreply on and off', async ($, on) => {
+  const { clock, sent } = world(on)
+  await start($)
+  for (const surface of ['terminal', 'desktop'] as const) {
+    sent.length = 0
+    const ui = await band($, surface)
+    expect((await ui.find({ key: 'toggle' }))?.text).toBe('autoreply: OFF')
+
+    await ui.press({ key: 'toggle' })
+    expect((await ui.find({ key: 'toggle' }))?.text).toBe('autoreply: ON')
+    await finish($)
+    await clock.advance(3500)
+    expect(sent).toEqual(['次はテストを追加してください'])
+
+    // Turning it off mid-countdown cancels the pending send.
+    await finish($)
+    await clock.advance(1000)
+    await ui.press({ key: 'toggle' })
+    expect((await ui.find({ key: 'toggle' }))?.text).toBe('autoreply: OFF')
+    await clock.advance(5000)
+    expect(sent).toEqual(['次はテストを追加してください'])
+    await ui.unmount()
+  }
+})
+
+test('the band toggle follows /autoreply and is remembered across sessions', async ($, on) => {
+  world(on)
+  await start($)
+  const ui = await band($, 'terminal')
+  await run($, 'on')
+  expect((await ui.find({ key: 'toggle' }))?.text).toBe('autoreply: ON')
+  await ui.unmount()
+
+  await start($)
+  const again = await band($, 'desktop')
+  expect((await again.find({ key: 'toggle' }))?.text).toBe('autoreply: ON')
+  await again.unmount()
 })
